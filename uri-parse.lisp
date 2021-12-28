@@ -49,6 +49,18 @@
     )
 )
 
+(defun fragment (lista)
+    (cond ((eq (car lista) #\#)
+            (multiple-value-bind
+                (parsedFragment remaining)
+                (identificatore (cdr lista) (list 'end))
+                (values parsedFragment remaining)
+            )
+            )
+            (T  nil)
+    )
+)
+
 
 (defun query (lista)
     (cond ((eq (car lista) #\?)
@@ -58,7 +70,7 @@
                 (values parsedQuery remaining)
             )
           )
-          (T (values nil lista)) 
+          (T (values nil lista))
     )
 )
 
@@ -71,7 +83,7 @@
                 (append parsedPath '(#\/) (path (cdr remaining)))
             )
             (T (values parsedPath remaining))
-        ) 
+        )
     )
 )
 
@@ -88,8 +100,12 @@
                          (query (second Path))
                         )
                     )
+                    (Fragment
+                        (multiple-value-list
+                         (fragment (second Query)))
+                    )
                 )
-                (values (first Path) (first Query))
+                (values (first Path) (first Query) (first Fragment))
             )
           )
           (T (values nil nil nil))
@@ -106,7 +122,6 @@
             )
           )
           (T (values 80 lista))
-    
     )
 )
 
@@ -114,12 +129,12 @@
 (defun host (lista)
    (multiple-value-bind
     (parsedHost remaining)
-    (identificatore lista (list #\. #\/ #\: 'end) (list #\? #\# #\@)) 
+    (identificatore lista (list #\. #\/ #\: 'end) (list #\? #\# #\@))
     (cond ((eq (car remaining) #\.)
             (append parsedHost '(#\.) (host (cdr remaining)))
           )
           (T (values parsedHost remaining))
-    )   
+    )
    )
 )
 
@@ -150,15 +165,17 @@
                     (cond ((null (first Userinfo)) 
                         (multiple-value-list
                             (host (second Userinfo))))
-                        (T (multiple-value-list 
+                        (T (multiple-value-list
                             (host (cdr (second Userinfo)))
                             )
-                        )    
+                        )
                     )
                   )
                   (Port
-                    (multiple-value-list
-                        (port (second Host))
+                    (cond ((null (first Host)) (error "Uri non valido"))
+                            (T (multiple-value-list
+                                (port (second Host)))
+                            )
                     )
                   )
                 )
@@ -166,8 +183,8 @@
             )
         )
         ((eq (car lista) #\/) (values nil nil nil lista))
-        ((eq (car lista) 'end) (values nil nil nil))
-        ;; errore negli altri casi
+        ((eq (car lista) 'end) (values nil nil nil 'end))
+        (T (error "Uri non valido"))
     )
 )
 
@@ -179,12 +196,24 @@
             )
            )
            (Subdomain
-            (multiple-value-list
-                (subdomain (fourth Authority))
+            (cond ((eq (fourth Authority) 'end) 
+                        (values nil nil nil)
+                  )
+                    (T (multiple-value-list 
+                            (subdomain (fourth Authority))
+                        )
+                    )
+            )
+           )
+           (helpUriReturn
+            (append (list (first Authority) 
+                          (second Authority) 
+                          (third Authority)) 
+                          Subdomain
             )
            )
           )
-          (list Authority Subdomain)
+          helpUriReturn
     )
 )
 
@@ -198,8 +227,6 @@
     )
 )
 
-
-
 (defun helpScheme (lista)
     (multiple-value-bind
         (parsedScheme remaining)
@@ -211,8 +238,16 @@
     )
 )
 
-
-
 (defun uri-parse (uriString)
     (helpScheme (append (coerce uriString 'list) (list 'end)))
 )
+
+
+#| 
+TODO
+ - Host come IP
+ - gestione errori per caratteri non ammessi
+ - return del resto della lista in host e path
+ - schemi speciali
+ - uri display
+#|
