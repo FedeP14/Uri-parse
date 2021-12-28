@@ -65,18 +65,18 @@
 
 (defun path (lista)
     (multiple-value-bind
-    (parsedPath remaining)
-    (identificatore lista (list #\/ #\? 'end) (list #\# #\@ #\:))
-    (cond ((eq (car remaining) #\/)
-            (append parsedPath '(#\/) (path (cdr remaining)))
-          )
-          (T (values parsedPath remaining))
-    ) 
-   )
+        (parsedPath remaining)
+        (identificatore lista (list #\/ #\? 'end) (list #\# #\@ #\:))
+        (cond ((eq (car remaining) #\/)
+                (append parsedPath '(#\/) (path (cdr remaining)))
+            )
+            (T (values parsedPath remaining))
+        ) 
+    )
 )
 
 (defun subdomain (lista)
-    (cond ((eq (car lista) #\/) 
+    (cond ((eq (car lista) #\/)
             (let* (
                     (Path
                         (multiple-value-list
@@ -100,8 +100,8 @@
 (defun port (lista)
     (cond ((eq (car lista) #\:)
             (multiple-value-bind
-                (identificatorePort (cdr lista) (list #\/ 'end))
                 (parsedPort remaining)
+                (identificatorePort (cdr lista) (list #\/ 'end))
                 (values parsedPort remaining)
             )
           )
@@ -147,8 +147,13 @@
                     )
                   )
                   (Host
-                    (multiple-value-list
-                        (host (cdr (second Userinfo)))                          ;;TODO host come ip
+                    (cond ((null (first Userinfo)) 
+                        (multiple-value-list
+                            (host (second Userinfo))))
+                        (T (multiple-value-list 
+                            (host (cdr (second Userinfo)))
+                            )
+                        )    
                     )
                   )
                   (Port
@@ -157,7 +162,7 @@
                     )
                   )
                 )
-                (values (first Userinfo) (first Host)  (first Port))
+                (values (first Userinfo) (first Host) (first Port))
             )
         )
         ((eq (car lista) #\/) (values nil nil nil lista))
@@ -179,7 +184,7 @@
             )
            )
           )
-          (values Authority Subdomain)
+          (list Authority Subdomain)
     )
 )
 
