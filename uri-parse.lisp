@@ -80,7 +80,11 @@
         (parsedPath remaining)
         (identificatore lista (list #\/ #\? 'end) (list #\# #\@ #\:))
         (cond ((eq (car remaining) #\/)
-                (append parsedPath '(#\/) (path (cdr remaining)))
+                (multiple-value-bind 
+                    (parsedSubPath subRemaining)
+                    (path (cdr remaining))
+                    (values (append parsedPath '(#\/) parsedSubPath) subRemaining)
+                )
             )
             (T (values parsedPath remaining))
         )
@@ -131,7 +135,11 @@
     (parsedHost remaining)
     (identificatore lista (list #\. #\/ #\: 'end) (list #\? #\# #\@))
     (cond ((eq (car remaining) #\.)
-            (append parsedHost '(#\.) (host (cdr remaining)))
+            (multiple-value-bind 
+                (parsedSubHost subRemaining)
+                (host (cdr remaining))
+                (values (append parsedHost '(#\.) parsedSubHost) subRemaining)
+            )
           )
           (T (values parsedHost remaining))
     )
@@ -179,7 +187,7 @@
                     )
                   )
                 )
-                (values (first Userinfo) (first Host) (first Port))
+                (values (first Userinfo) (first Host) (first Port) (second Port))
             )
         )
         ((eq (car lista) #\/) (values nil nil nil lista))
@@ -250,4 +258,4 @@ TODO
  - return del resto della lista in host e path
  - schemi speciali
  - uri display
-#|
+|#
