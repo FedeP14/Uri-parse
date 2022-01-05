@@ -29,7 +29,7 @@
           ((member (car lista) listaDelimitatori)
            (values (nreverse accumulatore) lista)
           )
-          ((null (digit-char-p (car lista))) nil)
+          ((null (digit-char-p (car lista))) (error "port solo numeri"))
           (T (idHelperPort (cdr lista)
                            listaDelimitatori
                            (cons (car lista) accumulatore)
@@ -78,13 +78,20 @@
 (defun path (lista)
     (multiple-value-bind
         (parsedPath remaining)
-        (identificatore lista (list #\/ #\? 'end) (list #\# #\@ #\:))
-        (cond ((eq (car remaining) #\/)
-                (multiple-value-bind 
+        (identificatore lista (list #\/ #\? #\# 'end) (list #\@ #\:))
+        (cond ((and (eq (car remaining) #\/)
+                    (eq (second remaining) 'end))
+                    (error "Errore path"))
+            ((and (eq (car remaining) #\/)
+                    (not (member (second remaining) (list #\# #\@ #\: #\/ #\?))))
+                (multiple-value-bind
                     (parsedSubPath subRemaining)
                     (path (cdr remaining))
                     (values (append parsedPath '(#\/) parsedSubPath) subRemaining)
-                )
+                ))
+            ((and (eq (car remaining) #\/)
+                  (member (second remaining) (list #\# #\@ #\: #\/ #\?)))
+                    (error "Errore path")
             )
             (T (values parsedPath remaining))
         )
@@ -100,15 +107,16 @@
                         )
                     )
                     (Query
-                        (multiple-value-list
-                         (query (second Path))
+                        (cond ((and (eq (car (second Path)) #\?) (member (second (second Path)) (list #\# 'end))) (error "Errore query"))  
+                              (T (multiple-value-list
+                                    (query (second Path))))))
+                    (Fragment
+                        (cond ((and (eq (car (second Query)) #\#) (eq (second (second Query)) 'end)) (error "Errore fragment"))
+                            (T (multiple-value-list
+                                        (fragment (second Query))
+                                    )))
                         )
                     )
-                    (Fragment
-                        (multiple-value-list
-                         (fragment (second Query)))
-                    )
-                )
                 (values (first Path) (first Query) (first Fragment))
             )
           )
@@ -130,12 +138,50 @@
 )
 
 
+(defun ipHelper (lista &optional final)
+    (multiple-value-bind 
+        (parsedTriplet remaining)
+        (identificatore lista (list #\. #\: #\/ 'end))
+            (cond ((or (> (parse-integer (coerce parsedTriplet 'string)) 255) (< (parse-integer (coerce parsedTriplet 'string)) 0)) (error "ip non valido"))
+                ((and final (member (car remaining) (list #\. #\? #\@ #\#))) (error "errore fine ip"))
+                ((and (not final) (not (eq (car remaining) #\.))) (error "errore punto ip")) 
+                (T (values parsedTriplet remaining))
+            )
+    )
+)
+
+(defun ip (lista)
+    (let* ((firstTriplet
+                (multiple-value-list
+                    (ipHelper lista)
+                )  
+           )
+           (secondTriplet
+                (multiple-value-list
+                (ipHelper (cdr (second firstTriplet)))
+                )
+           )
+           (thirdTriplet
+                (multiple-value-list
+                (ipHelper (cdr (second secondTriplet)))
+                )
+           )
+           (fourthTriplet
+                (multiple-value-list
+                (ipHelper (cdr (second thirdTriplet)) T)
+                )
+           )
+           )
+            (values (append (first firstTriplet) '(#\.) (first secondTriplet)'(#\.) (first thirdTriplet) '(#\.) (first fourthTriplet)) (second fourthTriplet))
+    )
+)
+
 (defun host (lista)
    (multiple-value-bind
     (parsedHost remaining)
     (identificatore lista (list #\. #\/ #\: 'end) (list #\? #\# #\@))
     (cond ((eq (car remaining) #\.)
-            (multiple-value-bind 
+            (multiple-value-bind
                 (parsedSubHost subRemaining)
                 (host (cdr remaining))
                 (values (append parsedHost '(#\.) parsedSubHost) subRemaining)
@@ -146,16 +192,42 @@
    )
 )
 
+(defun hostHelper (lista)
+    (handler-case (ip lista)
+        (error ()
+            (host lista)
+        )
+    )
+
+)
+
+(defun mailHost (lista)
+    (multiple-value-bind
+    (parsedHost remaining)
+    (identificatore lista (list #\. 'end) (list #\? #\# #\@ #\/ #\:))
+    (cond ((eq (car remaining) #\.)
+            (multiple-value-bind 
+                (parsedSubHost subRemaining)
+                (host (cdr remaining))
+                (values (append parsedHost '(#\.) parsedSubHost) subRemaining)
+            )
+          )
+          (T (values parsedHost))
+    )
+   )
+)
+
 
 (defun userinfo (lista)
     (multiple-value-bind
         (parsedUserinfo remaining)
         (identificatore lista (list #\@) (list #\/ #\? #\# #\:))
         (cond ((null parsedUserinfo) (values nil remaining))
-               (T (values parsedUserinfo remaining))
+               (T (values parsedUserinfo (cdr remaining)))
         )
     )
 )
+
 
 
 (defun authority (lista)
@@ -170,14 +242,9 @@
                     )
                   )
                   (Host
-                    (cond ((null (first Userinfo)) 
-                        (multiple-value-list
-                            (host (second Userinfo))))
-                        (T (multiple-value-list
-                            (host (cdr (second Userinfo)))
-                            )
-                        )
-                    )
+                     (multiple-value-list
+                        (hostHelper  (second Userinfo))
+                     )
                   )
                   (Port
                     (cond ((null (first Host)) (error "Uri non valido"))
@@ -190,6 +257,7 @@
                 (values (first Userinfo) (first Host) (first Port) (second Port))
             )
         )
+        ((member (third lista) (list #\/ #\? #\# #\@ #\:)) (error "Uri non valido"))
         ((eq (car lista) #\/) (values nil nil nil lista))
         ((eq (car lista) 'end) (values nil nil nil 'end))
         (T (error "Uri non valido"))
@@ -226,6 +294,50 @@
 )
 
 
+(defun telfax (lista)
+    (multiple-value-bind
+        (parsedTelFax remaining)
+        (identificatore (cdr lista) (list 'end) (list #\/ #\? #\# #\@ #\:))
+        (cond ((not (member (first remaining) (list #\: 'end))) (error "telfax non valido"))
+            (T (values (append (list parsedTelFax)
+                        (list nil 80 nil nil nil))))))
+
+)
+
+(defun news (lista)
+    (multiple-value-bind
+        (parsedNews remaining)
+        (host (cdr lista))
+        (cond ((not (eq (first remaining) 'end)) (error "news non valido"))
+            (T (values (append (list nil)
+                        (list parsedNews)
+                        (list 80 nil nil nil)))))))
+
+(defun mailto (lista)
+    (let* ((Userinfo
+                (multiple-value-list
+                    (identificatore (cdr lista) (list #\@ 'end) (list #\/ #\? #\# #\:))
+                ))
+            (Host
+                (cond ((and (null (first Userinfo))
+                            (not (eq (first (second Userinfo)) 'end))) (error "mailto non valido"))
+                        ((null (first Userinfo)) (values nil nil))
+                    (T (multiple-value-list
+                        (mailHost (cdr (second Userinfo)))
+                        )
+                    )
+                )
+            )
+            (mailReturn
+                    (append (list (first Userinfo))
+                            (list (first Host))
+                            (list 80 nil nil nil)
+                    )
+                )
+            )
+            mailReturn
+    )
+)
 
 (defun scheme (lista)
     (multiple-value-bind
@@ -239,23 +351,27 @@
     (multiple-value-bind
         (parsedScheme remaining)
         (scheme lista)
-        (cond ((null parsedScheme) nil)
-                ;controllo scheme speciale
-               (T (values parsedScheme (helpuri remaining)))
+        (cond ((null parsedScheme) (error "Uri non valido"))
+              ((equal parsedScheme (list #\m #\a #\i #\l #\t #\o)) (values (append (list parsedScheme) (mailto remaining))))
+              ((equal parsedScheme (list #\n #\e #\w #\s)) (values (append (list parsedScheme) (news remaining))))
+              ((or (equal parsedScheme (list #\t #\e #\l)) (equal parsedScheme (list #\f #\a #\x))) (values (append (list parsedScheme) (telfax remaining))))
+              (T (values (append parsedScheme (helpuri remaining))))
         )
     )
 )
 
 (defun uri-parse (uriString)
-    (helpScheme (append (coerce uriString 'list) (list 'end)))
+    (handler-case (helpScheme (append (coerce uriString 'list) (list 'end)))
+        (error (c)
+        (values c));; ALLA FINE LEVALO
+    )
 )
+
 
 
 #| 
 TODO
- - Host come IP
- - gestione errori per caratteri non ammessi
- - return del resto della lista in host e path
- - schemi speciali
+ - schema zos
  - uri display
+ - structure output
 |#
