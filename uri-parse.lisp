@@ -331,8 +331,8 @@
                     (parsedSubID44 subRemaining)
                     (id44 (cdr remaining))
                     (values (append parsedID44 '(#\.) parsedSubID44) subRemaining)
-                )
-                )
+                ))
+                ((> (list-length parsedID44) 44) (error "ID44 troppo lungo"))
                 (T (values parsedID44 remaining))
             )
         )
@@ -345,10 +345,9 @@
     (multiple-value-bind
         (parsedID8 remaining)
         (identificatoreID lista (list #\] 'end) (list #\. #\? #\# 'end))
-        (values parsedID8 remaining)
+        (if (> (list-length parsedID8 ) 8) (error "ID8 troppo lungo") (values parsedID8 remaining))
     )
-    (error "id8 deve iniziare con un carattere afabetico")
-    )
+    (error "id8 deve iniziare con un carattere afabetico"))
 )
 
 (defun zosPath (lista)
@@ -365,17 +364,8 @@
                                 (T (values nil (second ID44)))
                              )
                       )
-                    (zosPathReturn
-                        (cond ((and (< (list-length (first ID44)) 45)
-                                    (< (list-length (first ID8)) 8))
-                                (multiple-value-list
-                                    (values (first ID44) (first ID8) (cdr (Second ID8)))) ;;!!!!!!!!!!!!!!!!!!
-                                )
-                                (T (error "ID44/ID8 lunghezza non conforme"))
-                        )
-                    )
             )
-            zosPathReturn
+            (values (first id44) (first ID8) (cdr (second ID8)))
             ))
     ) 
 )
@@ -405,18 +395,16 @@
                 (values (append (list (first Authority))
                                         (list (second Authority))
                                         (list (third Authority))
-                                        (list (first Path))
+                                        (append (list (first Path))
+                                        (list (second Path)))
                                         (list (first Query))
                                         (list (first Fragment))
                                 ))
-                
             )
         )
         zosReturn
     )
 )
-
-
 
 (defun telfax (lista)
     (multiple-value-bind
