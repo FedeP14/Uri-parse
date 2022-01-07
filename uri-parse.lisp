@@ -57,7 +57,7 @@
                 (values parsedFragment remaining)
             )
             )
-            (T  nil)
+            (T  (values nil lista))
     )
 )
 
@@ -268,7 +268,7 @@
 (defun helpuri (lista)
     (let* ((Authority
             (multiple-value-list
-                (authority (cdr lista))
+                (authority  lista)
             )
            )
            (Subdomain
@@ -293,6 +293,130 @@
     )
 )
 
+(defun zosIDHelper (lista &optional listaDelimitatori listaBannati accumulatore)
+    (cond   ((null lista) nil)
+            ((member (car lista) listaBannati) nil)
+            ((member (car lista) listaDelimitatori)
+                (values (nreverse accumulatore)  lista))
+            ((eq (car lista) #\SPACE) (error "Non sono ammessi spazi in id44"))
+            ((not (alphanumericp (car lista))) (error "id44 deve essere formato da valori alfanumerici"))
+            (T (zosIDHelper 
+                 (cdr lista)
+                 listaDelimitatori
+                 listaBannati
+                 (cons (car lista) accumulatore)
+               )
+            )
+    )
+)
+
+(defun identificatoreID (lista &optional listaDelimitatori listaBannati)
+    (let ((helperReturn 
+            (multiple-value-list 
+                (zosIDHelper lista listaDelimitatori listaBannati)
+            )
+          )
+         )
+        (if (first helperReturn) (values-list helperReturn) (values nil lista))
+    )
+)
+
+(defun id44 (lista)
+    (if (alpha-char-p (car lista)) 
+        (multiple-value-bind
+            (parsedID44 remaining)
+            (identificatoreID lista (list #\. #\? #\# #\[ 'end))
+            (cond ((eq (car remaining) #\.)
+                (multiple-value-bind
+                    (parsedSubID44 subRemaining)
+                    (id44 (cdr remaining))
+                    (values (append parsedID44 '(#\.) parsedSubID44) subRemaining)
+                )
+                )
+                (T (values parsedID44 remaining))
+            )
+        )
+        (error "id44 deve iniziare con un carttere alfabetico")
+    )
+)
+
+(defun id8 (lista)
+    (if (alpha-char-p (car lista))
+    (multiple-value-bind
+        (parsedID8 remaining)
+        (identificatoreID lista (list #\] 'end) (list #\. #\? #\# 'end))
+        (values parsedID8 remaining)
+    )
+    (error "id8 deve iniziare con un carattere afabetico")
+    )
+)
+
+(defun zosPath (lista)
+    (cond ((member (second lista) (list #\? #\#  #\[ 'end)) (error "id44 obbligatorio"))
+            (T (let* ((ID44
+                            (multiple-value-list
+                                (id44 (cdr lista))
+                            )
+                      )
+                      (ID8
+                             (cond ((eq (car (second ID44)) #\[)
+                                (multiple-value-list
+                                    (id8 (cdr (second ID44)))))
+                                (T (values nil (second ID44)))
+                             )
+                      )
+                    (zosPathReturn
+                        (cond ((and (< (list-length (first ID44)) 45)
+                                    (< (list-length (first ID8)) 8))
+                                (multiple-value-list
+                                    (values (first ID44) (first ID8) (cdr (Second ID8)))) ;;!!!!!!!!!!!!!!!!!!
+                                )
+                                (T (error "ID44/ID8 lunghezza non conforme"))
+                        )
+                    )
+            )
+            zosPathReturn
+            ))
+    ) 
+)
+
+
+(defun zos (lista)
+     (let* ((Authority
+                (multiple-value-list
+                    (authority lista))
+            )
+            (Path
+                (cond ((null (second Authority)) (error "Host obbligatorio in zos"))
+                (T (multiple-value-list
+                    (zosPath (fourth Authority)))))
+            )
+            (Query
+                (cond ((and (eq (car (third Path)) #\?) (member (second (third Path)) (list #\# 'end))) (error "Errore query"))
+                        (T (multiple-value-list
+                            (query (third Path))))))
+            (Fragment
+                (cond ((and (eq (car (second Query)) #\#) (eq (second (second Query)) 'end)) (error "Errore fragment"))
+                    (T (multiple-value-list
+                        (fragment (second Query))
+                                    )))
+            )
+            (zosReturn
+                (values (append (list (first Authority))
+                                        (list (second Authority))
+                                        (list (third Authority))
+                                        (list (first Path))
+                                        (list (first Query))
+                                        (list (first Fragment))
+                                ))
+                
+            )
+        )
+        zosReturn
+    )
+)
+
+
 
 (defun telfax (lista)
     (multiple-value-bind
@@ -316,7 +440,7 @@
 (defun mailto (lista)
     (let* ((Userinfo
                 (multiple-value-list
-                    (identificatore (cdr lista) (list #\@ 'end) (list #\/ #\? #\# #\:))
+                    (identificatore lista (list #\@ 'end) (list #\/ #\? #\# #\:))
                 ))
             (Host
                 (cond ((and (null (first Userinfo))
@@ -343,7 +467,7 @@
     (multiple-value-bind
         (parsedScheme remaining)
         (identificatore lista (list #\:) (list #\/ #\? #\# #\@))
-        (values parsedScheme remaining)
+        (values parsedScheme (cdr remaining))
     )
 )
 
@@ -355,6 +479,7 @@
               ((equal parsedScheme (list #\m #\a #\i #\l #\t #\o)) (values (append (list parsedScheme) (mailto remaining))))
               ((equal parsedScheme (list #\n #\e #\w #\s)) (values (append (list parsedScheme) (news remaining))))
               ((or (equal parsedScheme (list #\t #\e #\l)) (equal parsedScheme (list #\f #\a #\x))) (values (append (list parsedScheme) (telfax remaining))))
+              ((equal parsedScheme (list #\z #\o #\s)) (values (append (list parsedScheme) (zos remaining))))
               (T (values (append parsedScheme (helpuri remaining))))
         )
     )
