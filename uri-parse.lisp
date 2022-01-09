@@ -54,10 +54,10 @@
             (multiple-value-bind
                 (parsedFragment remaining)
                 (identificatore (cdr lista) (list 'end))
-                (values parsedFragment remaining)
+                (values (coerce parsedFragment 'string) remaining)
             )
             )
-            (T  (values nil lista))
+            (T  (values (coerce nil 'string) lista))
     )
 )
 
@@ -67,10 +67,10 @@
             (multiple-value-bind
                 (parsedQuery remaining)
                 (identificatore (cdr lista) (list #\# 'end))
-                (values parsedQuery remaining)
+                (values (coerce parsedQuery 'string) remaining)
             )
           )
-          (T (values nil lista))
+          (T (values (coerce nil 'string) lista))
     )
 )
 
@@ -87,13 +87,13 @@
                 (multiple-value-bind
                     (parsedSubPath subRemaining)
                     (path (cdr remaining))
-                    (values (append parsedPath '(#\/) parsedSubPath) subRemaining)
+                    (values (concatenate 'string parsedPath '(#\/) parsedSubPath) subRemaining)
                 ))
             ((and (eq (car remaining) #\/)
                   (member (second remaining) (list #\# #\@ #\: #\/ #\?)))
                     (error "Errore path")
             )
-            (T (values parsedPath remaining))
+            (T (values (coerce parsedPath 'string) remaining))
         )
     )
 )
@@ -130,7 +130,7 @@
             (multiple-value-bind
                 (parsedPort remaining)
                 (identificatorePort (cdr lista) (list #\/ 'end))
-                (values parsedPort remaining)
+                (values (parse-integer (coerce parsedPort 'string)) remaining)
             )
           )
           (T (values 80 lista))
@@ -145,7 +145,7 @@
             (cond ((or (> (parse-integer (coerce parsedTriplet 'string)) 255) (< (parse-integer (coerce parsedTriplet 'string)) 0)) (error "ip non valido"))
                 ((and final (member (car remaining) (list #\. #\? #\@ #\#))) (error "errore fine ip"))
                 ((and (not final) (not (eq (car remaining) #\.))) (error "errore punto ip")) 
-                (T (values parsedTriplet remaining))
+                (T (values (coerce parsedTriplet 'string) remaining))
             )
     )
 )
@@ -184,10 +184,10 @@
             (multiple-value-bind
                 (parsedSubHost subRemaining)
                 (host (cdr remaining))
-                (values (append parsedHost '(#\.) parsedSubHost) subRemaining)
+                (values (concatenate 'string parsedHost '(#\.) parsedSubHost) subRemaining)
             )
           )
-          (T (values parsedHost remaining))
+          (T (values (coerce parsedHost 'string) remaining))
     )
    )
 )
@@ -223,7 +223,7 @@
         (parsedUserinfo remaining)
         (identificatore lista (list #\@) (list #\/ #\? #\# #\:))
         (cond ((null parsedUserinfo) (values nil remaining))
-               (T (values parsedUserinfo (cdr remaining)))
+               (T (values (coerce parsedUserinfo 'string) (cdr remaining)))
         )
     )
 )
@@ -455,7 +455,7 @@
     (multiple-value-bind
         (parsedScheme remaining)
         (identificatore lista (list #\:) (list #\/ #\? #\# #\@))
-        (values parsedScheme (cdr remaining))
+        (values (coerce parsedScheme 'string) (cdr remaining))
     )
 )
 
@@ -468,7 +468,7 @@
               ((equal parsedScheme (list #\n #\e #\w #\s)) (values (append (list parsedScheme) (news remaining))))
               ((or (equal parsedScheme (list #\t #\e #\l)) (equal parsedScheme (list #\f #\a #\x))) (values (append (list parsedScheme) (telfax remaining))))
               ((equal parsedScheme (list #\z #\o #\s)) (values (append (list parsedScheme) (zos remaining))))
-              (T (values (append parsedScheme (helpuri remaining))))
+              (T (values (append (list parsedScheme) (helpuri remaining))))
         )
     )
 )
@@ -480,11 +480,63 @@
     )
 )
 
+;; GET SCHEME
+(defun uri-scheme (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (first lista)))
+)
+
+;; GET USERINFO
+(defun uri-userinfo (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (second lista)))
+)
+
+;; GET HOST
+(defun uri-host (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (third lista)))
+)
+
+;; GET PORT
+(defun uri-port (lista)
+    (fourth lista)
+)
+
+;; GET PATH
+(defun uri-path (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (fifth lista)))
+)
+
+;; GET QUERY
+(defun uri-query (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (sixth lista)))
+)
+
+;; GET FRAGMENT
+(defun uri-fragment (lista)
+    (cond ((eq (length (first lista)) 0) nil)
+        (T (seventh lista)))
+)
 
 
-#| 
-TODO
- - schema zos
- - uri display
- - structure output
-|#
+(defun uri-display (lista &optional (stream t))
+    (format stream 
+    "Scheme: ~d~@
+    Userinfo: ~d~@
+    Host: ~d~@
+    Port: ~d~@
+    Path: ~d~@
+    Query: ~d~@
+    Fragment: ~d"
+    (uri-scheme lista)
+    (uri-userinfo lista)
+    (uri-host lista)
+    (uri-port lista)
+    (uri-path lista)
+    (uri-query lista)
+    (uri-fragment lista)
+    )
+)
