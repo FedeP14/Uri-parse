@@ -34,7 +34,7 @@ helpUri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
 
 % helpUri schemi speciali - URI2
 % mailto
-helpUri(Scheme, Userinfo, Host, [], [], [], []) -->
+helpUri(Scheme, Userinfo, Host, 80, [], [], []) -->
     scheme(Scheme),
     {Scheme = 'mailto'},
     [':'],
@@ -43,16 +43,16 @@ helpUri(Scheme, Userinfo, Host, [], [], [], []) -->
     !.
 
 % news
-helpUri(Scheme, [], Host, [], [], [], [] ) -->
+helpUri(Scheme, [], Host, 80, [], [], [] ) -->
     scheme(Scheme),
     {Scheme = 'news'},
     [':'],
-    host(Host),
+    specialHost(Host),
     !.
 
 % tel & fax
 
-helpUri(Scheme, Userinfo, [], [], [], [], []) -->
+helpUri(Scheme, Userinfo, [], 80, [], [], []) -->
     scheme(Scheme),
     schemeTelFax(Scheme),
     [':'],
@@ -180,6 +180,12 @@ specialSubdomain(Path, Query, Fragment) -->
     query(Query),
     fragment(Fragment),
     !.
+
+specialHost(Host) -->
+    host(Host).
+
+specialHost([]) --> [].
+
 
 % Gestione path
 path(Path) -->
