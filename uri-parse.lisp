@@ -1,4 +1,6 @@
-(defun identificatoreHelper (lista &optional listaDelimitatori listaBannati accumulatore)
+(defun identificatoreHelper 
+        (lista &optional listaDelimitatori listaBannati accumulatore)
+    
     (cond   ((null lista) nil)
             ((member (car lista) listaBannati) nil)
             ((member (car lista) listaDelimitatori)
@@ -7,60 +9,45 @@
                  (cdr lista)
                  listaDelimitatori
                  listaBannati
-                 (cons (car lista) accumulatore)
-               )
-            )
-    )
-)
+                 (cons (car lista) accumulatore)))))
 
-(defun identificatore (lista &optional listaDelimitatori listaBannati)
+(defun identificatore 
+        (lista &optional listaDelimitatori listaBannati)
+    
     (let ((helperReturn 
             (multiple-value-list 
-                (identificatoreHelper lista listaDelimitatori listaBannati)
-            )
-          )
-         )
-        (if (first helperReturn) (values-list helperReturn) (values nil lista))
-    )
-)
+                (identificatoreHelper lista listaDelimitatori listaBannati))))
 
-(defun idHelperPort (lista &optional listaDelimitatori accumulatore)
+        (if (first helperReturn) 
+            (values-list helperReturn) 
+            (values nil lista))))
+
+(defun idHelperPort 
+        (lista &optional listaDelimitatori accumulatore)
+    
     (cond ((null lista) nil)
           ((member (car lista) listaDelimitatori)
-           (values (nreverse accumulatore) lista)
-          )
+           (values (nreverse accumulatore) lista))
           ((null (digit-char-p (car lista))) (error "port solo numeri"))
           (T (idHelperPort (cdr lista)
-                           listaDelimitatori
-                           (cons (car lista) accumulatore)
-             )
-          )
-    )
-)
+                listaDelimitatori
+                (cons (car lista) accumulatore)))))
 
 (defun identificatorePort (lista &optional listaDelimitatori)
     (let ((helperReturn
             (multiple-value-list
-                (idHelperPort lista listaDelimitatori)
-            )
-          )
-         )
-         (if (first helperReturn) (values-list helperReturn) (values 80 lista))
-    )
-)
+                (idHelperPort lista listaDelimitatori))))
+        (if (first helperReturn) 
+            (values-list helperReturn) 
+            (values 80 lista))))
 
 (defun fragment (lista)
-    (cond ((eq (car lista) #\#)
+    (cond  ((eq (car lista) #\#)
             (multiple-value-bind
                 (parsedFragment remaining)
                 (identificatore (cdr lista) (list 'end))
-                (values (coerce parsedFragment 'string) remaining)
-            )
-            )
-            (T  (values (coerce nil 'string) lista))
-    )
-)
-
+                (values (coerce parsedFragment 'string) remaining)))
+            (T  (values (coerce nil 'string) lista))))
 
 (defun query (lista)
     (cond ((eq (car lista) #\?)
