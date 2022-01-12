@@ -1,11 +1,12 @@
+; Sezione identificatori
 (defun identificatoreHelper 
         (lista &optional listaDelimitatori listaBannati accumulatore)
     
-    (cond   ((null lista) nil)
-            ((member (car lista) listaBannati) nil)
-            ((member (car lista) listaDelimitatori)
-                (values (nreverse accumulatore)  lista))
-            (T (identificatoreHelper 
+    (cond ((null lista) nil)
+          ((member (car lista) listaBannati) nil)
+          ((member (car lista) listaDelimitatori)
+                (values (nreverse accumulatore)  lista)) 
+          (T (identificatoreHelper 
                  (cdr lista)
                  listaDelimitatori
                  listaBannati
@@ -38,16 +39,18 @@
             (multiple-value-list
                 (idHelperPort lista listaDelimitatori))))
         (if (first helperReturn) 
-            (values-list helperReturn) 
+            (values-list helperReturn)
             (values 80 lista))))
+; fine sezione identificatori
 
+; Sezione Subdomain
 (defun fragment (lista)
     (cond  ((eq (car lista) #\#)
             (multiple-value-bind
                 (parsedFragment remaining)
                 (identificatore (cdr lista) (list 'end))
                 (values (coerce parsedFragment 'string) remaining)))
-            (T  (values (coerce nil 'string) lista))))
+            (T  (values  nil lista))))
 
 (defun query (lista)
     (cond ((eq (car lista) #\?)
@@ -57,18 +60,20 @@
                 (values (coerce parsedQuery 'string) remaining)
             )
           )
-          (T (values (coerce nil 'string) lista))
+          (T (values nil lista))
     )
 )
-
 
 (defun path (lista)
     (multiple-value-bind
         (parsedPath remaining)
         (identificatore lista (list #\/ #\? #\# 'end) (list #\@ #\:))
-        (cond ((and (eq (car remaining) #\/)
+        (cond
+            ((null parsedPath) (values nil remaining))
+            ((and (eq (car remaining) #\/)
                     (eq (second remaining) 'end))
                     (error "Errore path"))
+            ((and (eq (car remaining) #\/) (eq (second remaining) 'end)) (error "errore path"))
             ((and (eq (car remaining) #\/)
                     (not (member (second remaining) (list #\# #\@ #\: #\/ #\?))))
                 (multiple-value-bind
@@ -85,6 +90,7 @@
     )
 )
 
+; Struttura subdomain
 (defun subdomain (lista)
     (cond ((eq (car lista) #\/)
             (let* (
@@ -102,16 +108,20 @@
                             (T (multiple-value-list
                                         (fragment (second Query))
                                     )))
-                        )
                     )
-                (values (first Path) (first Query) (first Fragment))
+                    )
+                (cond ((eq (car (second Fragment)) 'end) (values (first Path) (first Query) (first Fragment)))
+                        (T (error "Subdomain"))
+                )
             )
           )
           (T (values nil nil nil))
     )
 )
 
+; Fine sezione Subdomain
 
+; Sezione Authority
 (defun port (lista)
     (cond ((eq (car lista) #\:)
             (multiple-value-bind
@@ -167,12 +177,15 @@
    (multiple-value-bind
     (parsedHost remaining)
     (identificatore lista (list #\. #\/ #\: 'end) (list #\? #\# #\@))
-    (cond ((eq (car remaining) #\.)
-            (multiple-value-bind
-                (parsedSubHost subRemaining)
-                (host (cdr remaining))
-                (values (concatenate 'string parsedHost '(#\.) parsedSubHost) subRemaining)
-            )
+    (cond ((and (eq (car remaining) #\.) (eq (second remaining) #\.)) (error "errore host"))
+            ((eq (length parsedHost) 0) (error "errore host"))
+            ((eq (car remaining) #\.)
+                (multiple-value-bind
+                    (parsedSubHost subRemaining)
+                    (host (cdr remaining))
+                    (cond ((eq (length parsedSubHost) 0) (error "errore host"))
+                           (T (values (concatenate 'string parsedHost '(#\.) parsedSubHost) subRemaining)))
+                )
           )
           (T (values (coerce parsedHost 'string) remaining))
     )
@@ -186,22 +199,6 @@
         )
     )
 
-)
-
-(defun mailHost (lista)
-    (multiple-value-bind
-    (parsedHost remaining)
-    (identificatore lista (list #\. 'end) (list #\? #\# #\@ #\/ #\:))
-    (cond ((eq (car remaining) #\.)
-            (multiple-value-bind 
-                (parsedSubHost subRemaining)
-                (host (cdr remaining))
-                (values (append parsedHost '(#\.) parsedSubHost) subRemaining)
-            )
-          )
-          (T (values parsedHost))
-    )
-   )
 )
 
 
@@ -234,7 +231,7 @@
                      )
                   )
                   (Port
-                    (cond ((null (first Host)) (error "Uri non valido"))
+                    (cond ((eq (length (first Host)) 0) (error "Uri non valido"))
                             (T (multiple-value-list
                                 (port (second Host)))
                             )
@@ -245,13 +242,14 @@
             )
         )
         ((member (third lista) (list #\/ #\? #\# #\@ #\:)) (error "Uri non valido"))
-        ((eq (car lista) #\/) (values nil nil nil lista))
-        ((eq (car lista) 'end) (values nil nil nil 'end))
+        ((eq (car lista) #\/) (values nil nil 80 lista))
+        ((eq (car lista) 'end) (values nil nil 80 nil nil nil 'end))
         (T (error "Uri non valido"))
     )
 )
+; Fine sezione Authority
 
-
+; Struttura URI
 (defun helpuri (lista)
     (let* ((Authority
             (multiple-value-list
@@ -280,9 +278,11 @@
     )
 )
 
+; Sezione Schemi speciali
+; ZOS
 (defun zosIDHelper (lista &optional listaDelimitatori listaBannati accumulatore)
     (cond   ((null lista) nil)
-            ((member (car lista) listaBannati) nil)
+            ((member (car lista) listaBannati) (error "no"))
             ((member (car lista) listaDelimitatori)
                 (values (nreverse accumulatore)  lista))
             ((eq (car lista) #\SPACE) (error "Non sono ammessi spazi in id44"))
@@ -312,47 +312,50 @@
     (if (alpha-char-p (car lista)) 
         (multiple-value-bind
             (parsedID44 remaining)
-            (identificatoreID lista (list #\. #\? #\# #\[ 'end))
-            (cond ((eq (car remaining) #\.)
-                (multiple-value-bind
-                    (parsedSubID44 subRemaining)
-                    (id44 (cdr remaining))
-                    (values (append parsedID44 '(#\.) parsedSubID44) subRemaining)
-                ))
+            (identificatoreID lista (list #\? #\# #\( 'end))
+            (cond
+                ((eq (car (last parsedID44)) #\.) (error "ID44 non può terminare con ."))
                 ((> (list-length parsedID44) 44) (error "ID44 troppo lungo"))
-                (T (values parsedID44 remaining))
+                (T (values (coerce parsedID44 'string) remaining))
             )
         )
         (error "id44 deve iniziare con un carttere alfabetico")
     )
 )
 
+
 (defun id8 (lista)
     (if (alpha-char-p (car lista))
     (multiple-value-bind
         (parsedID8 remaining)
-        (identificatoreID lista (list #\] 'end) (list #\. #\? #\# 'end))
-        (if (> (list-length parsedID8 ) 8) (error "ID8 troppo lungo") (values parsedID8 remaining))
+        (identificatoreID lista (list #\) 'end) (list #\. #\? #\# 'end))
+        (if (> (list-length parsedID8 ) 8) (error "ID8 troppo lungo") (values (coerce parsedID8 'string) remaining))
     )
     (error "id8 deve iniziare con un carattere afabetico"))
 )
 
+(defun helpID8 (lista)
+    (cond ((eq (car lista) #\()
+                                (id8 (cdr lista)))
+                                (T  (values nil lista)
+                                ))
+)
+
 (defun zosPath (lista)
-    (cond ((member (second lista) (list #\? #\#  #\[ 'end)) (error "id44 obbligatorio"))
+    (cond ((member (second lista) (list #\? #\#  #\( 'end)) (error "id44 obbligatorio"))
             (T (let* ((ID44
                             (multiple-value-list
                                 (id44 (cdr lista))
                             )
                       )
                       (ID8
-                             (cond ((eq (car (second ID44)) #\[)
-                                (multiple-value-list
-                                    (id8 (cdr (second ID44)))))
-                                (T (values nil (second ID44)))
-                             )
+                             (multiple-value-list
+                                (helpID8 (second ID44)))
                       )
-            )
-            (values (first id44) (first ID8) (cdr (second ID8)))
+                      )
+                      (cond ((null (first ID8)) (values (first ID44)  (second ID8)))
+                            (T (values (concatenate 'string (first ID44) "(" (first ID8) ")") (cdr (second ID8))))) ;; QUA PIAZZA LE PARENTESI
+    
             ))
     ) 
 )
@@ -364,14 +367,13 @@
                     (authority lista))
             )
             (Path
-                (cond ((null (second Authority)) (error "Host obbligatorio in zos"))
-                (T (multiple-value-list
-                    (zosPath (fourth Authority)))))
+                (multiple-value-list
+                    (zosPath (fourth Authority)))
             )
             (Query
-                (cond ((and (eq (car (third Path)) #\?) (member (second (third Path)) (list #\# 'end))) (error "Errore query"))
+                (cond ((and (eq (car (second Path)) #\?) (member (second (second Path)) (list #\# 'end))) (error "Errore query"))
                         (T (multiple-value-list
-                            (query (third Path))))))
+                            (query (second Path))))))
             (Fragment
                 (cond ((and (eq (car (second Query)) #\#) (eq (second (second Query)) 'end)) (error "Errore fragment"))
                     (T (multiple-value-list
@@ -382,8 +384,7 @@
                 (values (append (list (first Authority))
                                         (list (second Authority))
                                         (list (third Authority))
-                                        (append (list (first Path))
-                                        (list (second Path)))
+                                        (list (first Path))
                                         (list (first Query))
                                         (list (first Fragment))
                                 ))
@@ -393,38 +394,76 @@
     )
 )
 
+
+; Tel&fax
 (defun telfax (lista)
     (multiple-value-bind
         (parsedTelFax remaining)
-        (identificatore (cdr lista) (list 'end) (list #\/ #\? #\# #\@ #\:))
+        (identificatore lista (list 'end) (list #\/ #\? #\# #\@ #\:))
         (cond ((not (member (first remaining) (list #\: 'end))) (error "telfax non valido"))
-            (T (values (append (list parsedTelFax)
-                        (list nil 80 nil nil nil))))))
-
+            (T (values (list (coerce parsedTelFax 'string) nil 80 nil nil nil)))))
 )
 
+; News
 (defun news (lista)
     (multiple-value-bind
         (parsedNews remaining)
-        (host (cdr lista))
-        (cond ((not (eq (first remaining) 'end)) (error "news non valido"))
-            (T (values (append (list nil)
-                        (list parsedNews)
-                        (list 80 nil nil nil)))))))
+        (handler-case (host lista)
+            (error ()
+               (values nil lista)))
+        (cond 
+            ((and (null parsedNews) (eq (first remaining) 'end)) (values (list nil nil 80 nil nil nil)))
+            ((not (eq (first remaining) 'end)) (error "news non valido"))
+            (T (values (list nil (coerce parsedNews 'string) 80 nil nil nil)))))
+)
+; Mailto
+
+(defun mailHost (lista)
+    (multiple-value-bind
+    (parsedHost remaining)
+    (identificatore lista (list #\. 'end) (list #\? #\# #\@ #\/ #\:))
+    (cond ((and (eq (car remaining) #\.) (eq (second remaining) #\.)) (error "errore host"))
+            ((null parsedHost) (error "host obbligatorio"))
+            ((eq (car remaining) #\.)
+            (multiple-value-bind 
+                (parsedSubHost subRemaining)
+                (host (cdr remaining))
+                (values (concatenate 'string parsedHost '(#\.) parsedSubHost) subRemaining)
+            )
+          )
+          (T (values (coerce parsedHost 'string))
+    )
+    )
+   )
+)
+
+(defun mailUserinfo (lista)
+    (multiple-value-bind 
+        (parsedMail remaining)
+        (identificatore lista (list #\@ 'end) (list #\/ #\? #\# #\:))
+        (cond ((eq (car lista) 'end) (values nil lista))
+               (T (values (coerce parsedMail 'string) remaining))
+        )
+    )
+    
+)
+
 
 (defun mailto (lista)
     (let* ((Userinfo
                 (multiple-value-list
-                    (identificatore lista (list #\@ 'end) (list #\/ #\? #\# #\:))
+                    (mailUserinfo lista)
                 ))
             (Host
-                (cond ((and (null (first Userinfo))
+                (cond ((and (eq (length (first Userinfo)) 0)
                             (not (eq (first (second Userinfo)) 'end))) (error "mailto non valido"))
-                        ((null (first Userinfo)) (values nil nil))
-                    (T (multiple-value-list
-                        (mailHost (cdr (second Userinfo)))
+                    ((and (equal (first (second Userinfo)) #\@) (eq (second (second Userinfo)) 'end)) (error "mailto invalid"))
+                    ((equal (first (second Userinfo)) #\@)
+                        (multiple-value-list
+                            (mailHost  (cdr (second Userinfo)))
                         )
                     )
+                    (T (values nil))
                 )
             )
             (mailReturn
@@ -437,7 +476,9 @@
             mailReturn
     )
 )
+; Fine schemi speciali
 
+; Riconoscimento scheme
 (defun scheme (lista)
     (multiple-value-bind
         (parsedScheme remaining)
@@ -450,65 +491,69 @@
     (multiple-value-bind
         (parsedScheme remaining)
         (scheme lista)
-        (cond ((null parsedScheme) (error "Uri non valido"))
-              ((equal parsedScheme (list #\m #\a #\i #\l #\t #\o)) (values (append (list parsedScheme) (mailto remaining))))
-              ((equal parsedScheme (list #\n #\e #\w #\s)) (values (append (list parsedScheme) (news remaining))))
-              ((or (equal parsedScheme (list #\t #\e #\l)) (equal parsedScheme (list #\f #\a #\x))) (values (append (list parsedScheme) (telfax remaining))))
-              ((equal parsedScheme (list #\z #\o #\s)) (values (append (list parsedScheme) (zos remaining))))
+        (cond ((eq (length parsedScheme) 0) (error "Uri non valido"))
+              ((string-equal parsedScheme "mailto") (values (append (list parsedScheme) (mailto remaining))))
+              ((equal parsedScheme "news") (values (append (list parsedScheme) (news remaining))))
+              ((or (equal parsedScheme "tel") (equal parsedScheme "fax")) (values (append (list parsedScheme) (telfax remaining))))
+              ((equal parsedScheme "zos") (values (append (list parsedScheme) (zos remaining))))
               (T (values (append (list parsedScheme) (helpuri remaining))))
         )
     )
 )
+; fine riconoscimento scheme
 
+; funzione iniziale uri-parse
 (defun uri-parse (uriString)
     (handler-case (helpScheme (append (coerce uriString 'list) (list 'end)))
-        (error (c)
-        (values c));; ALLA FINE LEVALO
+        (error ()
+        nil);; ALLA FINE LEVALO
     )
 )
 
-;; GET SCHEME
+; GETTER singoli elementi URI da struttura
+; get scheme
 (defun uri-scheme (lista)
     (cond ((eq (length (first lista)) 0) nil)
         (T (first lista)))
 )
 
-;; GET USERINFO
+; get userinfo
 (defun uri-userinfo (lista)
-    (cond ((eq (length (first lista)) 0) nil)
+    (cond ((eq (length (second lista)) 0) nil)
         (T (second lista)))
 )
 
-;; GET HOST
+; get host
 (defun uri-host (lista)
-    (cond ((eq (length (first lista)) 0) nil)
+    (cond ((eq (length (third lista)) 0) nil)
         (T (third lista)))
 )
 
-;; GET PORT
+; get port
 (defun uri-port (lista)
     (fourth lista)
 )
 
-;; GET PATH
+; get path
 (defun uri-path (lista)
-    (cond ((eq (length (first lista)) 0) nil)
+    (cond ((eq (length (fifth lista)) 0) nil)
         (T (fifth lista)))
 )
 
-;; GET QUERY
+; get query
 (defun uri-query (lista)
-    (cond ((eq (length (first lista)) 0) nil)
+    (cond ((eq (length (sixth lista)) 0) nil)
         (T (sixth lista)))
 )
 
-;; GET FRAGMENT
+; get fragment
 (defun uri-fragment (lista)
-    (cond ((eq (length (first lista)) 0) nil)
+    (cond ((eq (length (seventh lista)) 0) nil)
         (T (seventh lista)))
 )
+; fine Getters
 
-
+; funzione uri-display
 (defun uri-display (lista &optional (stream t))
     (format stream 
     "Scheme: ~d~@
