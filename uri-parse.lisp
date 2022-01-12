@@ -280,14 +280,14 @@
 
 ; Sezione Schemi speciali
 ; ZOS
-(defun zosIDHelper (lista &optional listaDelimitatori listaBannati accumulatore)
+(defun zosID8Helper (lista &optional listaDelimitatori listaBannati accumulatore)
     (cond   ((null lista) nil)
-            ((member (car lista) listaBannati) (error "no"))
+            ((member (car lista) listaBannati) (error "char invalid id8"))
             ((member (car lista) listaDelimitatori)
                 (values (nreverse accumulatore)  lista))
-            ((eq (car lista) #\SPACE) (error "Non sono ammessi spazi in id44"))
-            ((not (alphanumericp (car lista))) (error "id44 deve essere formato da valori alfanumerici"))
-            (T (zosIDHelper 
+            ((eq (car lista) #\SPACE) (error "space char not valid"))
+            ((not (alphanumericp (car lista))) (error "id8 solo alphanumeric char"))
+            (T (zosID8Helper 
                  (cdr lista)
                  listaDelimitatori
                  listaBannati
@@ -297,10 +297,38 @@
     )
 )
 
-(defun identificatoreID (lista &optional listaDelimitatori listaBannati)
+(defun identificatoreID8 (lista &optional listaDelimitatori listaBannati)
     (let ((helperReturn 
             (multiple-value-list 
-                (zosIDHelper lista listaDelimitatori listaBannati)
+                (zosID8Helper lista listaDelimitatori listaBannati)
+            )
+          )
+         )
+        (if (first helperReturn) (values-list helperReturn) (values nil lista))
+    )
+)
+
+(defun zosID44Helper (lista &optional listaDelimitatori listaBannati accumulatore)
+    (cond   ((null lista) nil)
+            ((member (car lista) listaBannati) (error "char invalid id44"))
+            ((member (car lista) listaDelimitatori)
+                (values (nreverse accumulatore)  lista))
+            ((eq (car lista) #\SPACE) (error "space char not valid"))
+            ((and (not (alphanumericp (car lista))) (not(eq (car lista) #\.))) (error "id44 soloc alphanumeric char o ."))
+            (T (zosID44Helper 
+                 (cdr lista)
+                 listaDelimitatori
+                 listaBannati
+                 (cons (car lista) accumulatore)
+               )
+            )
+    )
+)
+
+(defun identificatoreID44 (lista &optional listaDelimitatori listaBannati)
+    (let ((helperReturn 
+            (multiple-value-list 
+                (zosID44Helper lista listaDelimitatori listaBannati)
             )
           )
          )
@@ -312,7 +340,7 @@
     (if (alpha-char-p (car lista)) 
         (multiple-value-bind
             (parsedID44 remaining)
-            (identificatoreID lista (list #\? #\# #\( 'end))
+            (identificatoreID44 lista (list #\? #\# #\( 'end))
             (cond
                 ((eq (car (last parsedID44)) #\.) (error "ID44 non può terminare con ."))
                 ((> (list-length parsedID44) 44) (error "ID44 troppo lungo"))
@@ -328,7 +356,7 @@
     (if (alpha-char-p (car lista))
     (multiple-value-bind
         (parsedID8 remaining)
-        (identificatoreID lista (list #\) 'end) (list #\. #\? #\# 'end))
+        (identificatoreID8 lista (list #\) 'end) (list #\. #\? #\# 'end))
         (if (> (list-length parsedID8 ) 8) (error "ID8 troppo lungo") (values (coerce parsedID8 'string) remaining))
     )
     (error "id8 deve iniziare con un carattere afabetico"))
