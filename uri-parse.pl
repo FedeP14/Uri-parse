@@ -1,8 +1,11 @@
-:- module(uri_parse, [uri_parse/2, uri_display/1]).
+%%%% -- Mode: Prolog --
+% 872491 - Pulcino Federico
+
+:- module(uri_parse, [uri_parse/2, uri_display/1, uri_display/2]).
 
 uri_parse(URIString, uri(Scheme, Userinfo, Host, Port, Path, Query, Frag)) :-
     string_chars(URIString, URIChars),
-    phrase(helpUri(Scheme, Userinfo, Host, Port, Path, Query, Frag), URIChars).
+    phrase(help_uri(Scheme, Userinfo, Host, Port, Path, Query, Frag), URIChars).
 
 uri_display(uri(Scheme, Userinfo, Host, Port, Path, Query, Frag)) :-
     format(
@@ -24,7 +27,7 @@ uri_display(URI, File) :-
 
 
 % URI1
-helpUri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
+help_uri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
     scheme(Scheme),
     {controllo_scheme(Scheme)},
     [':'],
@@ -32,46 +35,46 @@ helpUri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
     subdomain(Path, Query, Frag),
     !.
 
-% helpUri schemi speciali - URI2
+% help_uri schemi speciali - URI2
 % mailto
-helpUri(Scheme, Userinfo, Host, 80, [], [], []) -->
+help_uri(Scheme, Userinfo, Host, 80, [], [], []) -->
     scheme(Scheme),
     {Scheme = 'mailto'},
     [':'],
-    specialUserinfo(Userinfo),
-    mailHost(Host),
+    special_userinfo(Userinfo),
+    mail_host(Host),
     !.
 
 % news
-helpUri(Scheme, [], Host, 80, [], [], [] ) -->
+help_uri(Scheme, [], Host, 80, [], [], [] ) -->
     scheme(Scheme),
     {Scheme = 'news'},
     [':'],
-    specialHost(Host),
+    special_host(Host),
     !.
 
 % tel & fax
 
-helpUri(Scheme, Userinfo, [], 80, [], [], []) -->
+help_uri(Scheme, Userinfo, [], 80, [], [], []) -->
     scheme(Scheme),
-    schemeTelFax(Scheme),
+    scheme_tel_fax(Scheme),
     [':'],
-    specialUserinfo(Userinfo),
+    special_userinfo(Userinfo),
     !.
 
 
 % zos
-helpUri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
+help_uri(Scheme, Userinfo, Host, Port, Path, Query, Frag) -->
     scheme(Scheme),
     {Scheme = 'zos'},
     [':'],
     authority(Userinfo, Host, Port),
     ['/'],
-    specialSubdomain(Path, Query, Frag),
+    special_subdomain(Path, Query, Frag),
     !.
 
-checkSlash(['/']) --> ['/'].
-checkSlash([]) --> [].
+check_slash(['/']) --> ['/'].
+check_slash([]) --> [].
 
 % Gestione scheme
 scheme(Scheme) -->
@@ -109,31 +112,31 @@ host(Host) --> ip(Host).
 
 % Gestione host con identificatori
 host(Host) -->
-    helpHost(Hostchars),
+    help_host(Hostchars),
     {atom_chars(Host, Hostchars)}.
 
 % Help gestione host con identificatori
-helpHost(Host) -->
+help_host(Host) -->
     identificatoreHost(A),
     [.],
-    helpHost(B),
+    help_host(B),
     {Hostlist = [A, ., B], flatten(Hostlist, Host)}.
 
-helpHost(Host) --> identificatoreHost(Host).
+help_host(Host) --> identificatoreHost(Host).
 
 % Help gestione host come Ip
 ip(IP) -->
-    threedigit(First),
+    three_digits(First),
     [.], 
-    threedigit(Second),
+    three_digits(Second),
     [.], 
-    threedigit(Third),
+    three_digits(Third),
     [.], 
-    threedigit(Fourth), 
+    three_digits(Fourth), 
     {Iplist = [First, ., Second, ., Third, ., Fourth], 
         flatten(Iplist, Tempip), atom_chars(IP,Tempip)}.
 
-threedigit(Digits) -->
+three_digits(Digits) -->
     numero(First), 
     numero(Second), 
     numero(Third), 
@@ -150,17 +153,17 @@ numero(Digit) -->
 % Gestione port
 port(Port) -->
     [:],
-    helpPort(Portchars),
+    help_port(Portchars),
     {atom_chars(Port, Portchars)}.
 
 port(Port) --> {Portchars = ['8','0'], atom_chars(Port, Portchars)}.
 
 % Help Gestione port
-helpPort([First | Second]) -->
+help_port([First | Second]) -->
     [First],
-    {is_digit(First)}, helpPort(Second).
+    {is_digit(First)}, help_port(Second).
 
-helpPort([Port | []]) -->
+help_port([Port | []]) -->
     [Port], 
     {is_digit(Port)}.
 
@@ -175,21 +178,21 @@ subdomain(Path, Query, Fragment) -->
 
 subdomain([], [], []) --> [].
 
-specialSubdomain(Path, Query, Fragment) -->
-    zosPath(Path),
+special_subdomain(Path, Query, Fragment) -->
+    zos_path(Path),
     query(Query),
     fragment(Fragment),
     !.
 
-specialHost(Host) -->
+special_host(Host) -->
     host(Host).
 
-specialHost([]) --> [].
+special_host([]) --> [].
 
 
 % Gestione path
 path(Path) -->
-    helpPath(Pathchars), 
+    help_path(Pathchars), 
     {atom_chars(Path, Pathchars)}.
 
 
@@ -197,19 +200,19 @@ path(Path) -->
 path([]) --> [].
 
 % Help gestione path
-helpPath(Path) --> 
+help_path(Path) --> 
     identificatorePath(A),
     ['/'],
-    helpPath(B),
+    help_path(B),
     {Pathlist = [A, /, B], flatten(Pathlist, Path)}.
 
-helpPath(Path) --> identificatorePath(Path).
+help_path(Path) --> identificatorePath(Path).
 
 
 % Gestione query
 query(Query) --> 
     ['?'],
-    identificatoreQuery(Querylist),
+    identificatore_query(Querylist),
     {atom_chars(Query, Querylist)}.
 
 query([]) --> [].
@@ -217,7 +220,7 @@ query([]) --> [].
 % Gestione fragment
 fragment(Fragment) --> 
     ['#'], 
-    identificatoreFragment(Fragmentchars), 
+    identificatore_fragment(Fragmentchars), 
     {atom_chars(Fragment, Fragmentchars)}.
 
 fragment([]) --> [].
@@ -275,27 +278,16 @@ identificatorePath([Head | []]) -->
     [Head], 
     {controllo_char(Head), char_type(Head, graph)}.
 
-identificatorePath(['%','2','0' | Tail]) -->
-    [' '],
-    identificatorePath(Tail),
-    !.
-
 % Identificatore Query
-identificatoreQuery([Head | Tail]) --> 
+identificatore_query([Head | Tail]) --> 
     [Head], 
     {controllo_query(Head)}, 
-    identificatoreQuery(Tail), 
+    identificatore_query(Tail), 
     !.
 
-identificatoreQuery([Head | []]) --> 
+identificatore_query([Head | []]) --> 
     [Head], 
     {controllo_query(Head)}.
-
-identificatoreQuery(['%','2','0' | Tail]) -->
-    [' '],
-    identificatoreQuery(Tail),
-    !.
-
 
 % Caratteri non ammessi per query
 controllo_query(Char) :-
@@ -303,46 +295,39 @@ controllo_query(Char) :-
     Char \= '#'.
 
 % Identificatore fragment
-identificatoreFragment([Head | Tail]) --> 
+identificatore_fragment([Head | Tail]) --> 
     [Head],
     {char_type(Head, alpha)},
-    identificatoreFragment(Tail),
+    identificatore_fragment(Tail),
     !.
 
-identificatoreFragment([Head | []]) --> 
+identificatore_fragment([Head | []]) --> 
     [Head], 
     {char_type(Head, alpha)}.
 
-identificatoreFragment(['%','2','0' | Tail]) -->
-    [' '],
-    identificatoreFragment(Tail),
-    !.
-
 % Schema mailto
-
-specialUserinfo(Userinfo) -->
+special_userinfo(Userinfo) -->
     identificatore(Userinfochars),
     {atom_chars(Userinfo, Userinfochars)}.
 
-specialUserinfo([]) --> [].
+special_userinfo([]) --> [].
 
-mailIdentificatore(Userinfochars) --> 
+identificatore_mail(Userinfochars) --> 
    identificatore(Userinfochars).
 
-mailHost(Host) -->
+mail_host(Host) -->
     ['@'],
     host(Host).
 
-mailHost([]) --> [].
+mail_host([]) --> [].
 
 % tel and fax
-schemeTelFax(Scheme) --> {Scheme = 'tel'}.
+scheme_tel_fax(Scheme) --> {Scheme = 'tel'}.
 
-schemeTelFax(Scheme) --> {Scheme = 'fax'}.
+scheme_tel_fax(Scheme) --> {Scheme = 'fax'}.
 
-% zosPath
-
-zosPath(Path) --> 
+% zos_path
+zos_path(Path) --> 
     id44(Path44),
     ['('],
     id8(Path8),
@@ -353,7 +338,7 @@ zosPath(Path) -->
         flatten(TempPath, PathList), 
         atom_chars(Path, PathList)}.
 
-zosPath(Path) --> 
+zos_path(Path) --> 
     id44(PathList),
     {atom_chars(Path, PathList)}.
 
@@ -361,16 +346,16 @@ zosPath(Path) -->
 id44([Head | Tail]) -->
     [Head],
     {char_type(Head, alpha)},
-    bodyid44(Tail),
+    body_id44(Tail),
     !.
 
-bodyid44([Head | Tail]) -->
+body_id44([Head | Tail]) -->
     [Head],
     controllo_zos(Head),
-    bodyid44(Tail),
+    body_id44(Tail),
     !.
 
-bodyid44([Head | []]) -->
+body_id44([Head | []]) -->
     [Head],
     {char_type(Head, alnum)}.
 
@@ -378,15 +363,15 @@ bodyid44([Head | []]) -->
 id8([Head | Tail]) -->
     [Head],
     {char_type(Head, alpha)},
-    bodyid8(Tail),
+    body_id8(Tail),
     !.
 
-bodyid8([Head | Tail]) -->
+body_id8([Head | Tail]) -->
     [Head],
     {char_type(Head, alnum)},
-    bodyid8(Tail).
+    body_id8(Tail).
 
-bodyid8([Head | []]) -->
+body_id8([Head | []]) -->
     [Head],
     {char_type(Head, alnum)}.
 
